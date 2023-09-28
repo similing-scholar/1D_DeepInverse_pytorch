@@ -38,6 +38,17 @@ def spectrum_deepinverse_encoder(spectrum_dataset, mask, encoder):
         raise ValueError("Invalid encoder mode. Use 'train' or 'predict'.")
 
 
+def normalize_data(data):
+    # 计算数据的最小值和最大值
+    data_min = np.min(data)
+    data_max = np.max(data)
+
+    # 归一化数据到 [0, 1] 范围内
+    normalized_data = (data - data_min) / (data_max - data_min)
+
+    return normalized_data
+
+
 class Basic1DDataset(Dataset):
     def __init__(self, mask_file, input_file, output_file=None, encoder='train'):
         self.mask = load_h5(mask_file)
@@ -51,17 +62,18 @@ class Basic1DDataset(Dataset):
         return len(self.input_data)  # 数据集的长度是输入数据的行数
 
     def __getitem__(self, index):
-        # 根据索引获取对应的输入和输出行
-        input_row = self.input_data[index]
+        # 根据索引获取对应的输入行，并归一化
+        input_row = normalize_data(self.input_data[index])
         # 将行数据转换为PyTorch张量，并增加一个通道数保证conv1d的输入格式
         input_tensor = torch.tensor(input_row, dtype=torch.float32).view(1, -1)  # 增加一个通道数 (1, 101) -> (1, 1, 101)
 
-        if self.encoder == 'train':
-            output_row = self.output_data[index]
+        if self.encoder == 'train':  # 如果是训练模式，返回输入和输出对
+            # 根据索引获取对应的输出行，并归一化
+            output_row = normalize_data(self.output_data[index])
             output_tensor = torch.tensor(output_row, dtype=torch.float32).view(1, -1)
             return input_tensor, output_tensor
 
-        elif self.encoder == 'predict':
+        elif self.encoder == 'predict':  # 如果是预测模式，只返回输入
             return input_tensor
 
 
@@ -100,27 +112,27 @@ if __name__ == '__main__':
     input_file = '../dataset/1Dspectrum[10000,101].h5'
     output_file = '../dataset/1Dspectrum[10000,101].h5'
 
-    # 实例化训练数据集
+    # ----------实例化训练数据集----------
     train_dataset = Basic1DDataset(mask_file, input_file, output_file)
     train_loader, val_loader, test_loader = load_dataset(train_dataset, 0.8, 0.2, 64)
 
-    # # 加载数据用时
-    # start_time = time.time()
-    # # 遍历数据加载器以进行训练
-    # for input_batch, output_batch in train_loader:
-    #     # 在这里进行模型的训练
-    #     print(input_batch.shape, output_batch.shape)
-    # # 加载数据用时
-    # end_time = time.time()
-    # print('time cost:', end_time - start_time, 's')
+    # 加载数据用时
+    start_time = time.time()
+    # 遍历数据加载器以进行训练
+    for input_batch, output_batch in train_loader:
+        # 在这里进行模型的训练
+        print(input_batch.shape, output_batch.shape)
+    # 加载数据用时
+    end_time = time.time()
+    print('time cost:', end_time - start_time, 's')
 
-    # first_input_batch, first_output_batch = next(iter(train_loader))
-    # print("input:", first_input_batch[0])
-    # print("output:", first_output_batch[0])
+    first_input_batch, first_output_batch = next(iter(train_loader))
+    print("input:", first_input_batch[0])
+    print("output:", first_output_batch[0])
 
-    # 实例化预测数据集
-    predict_dataset = Basic1DDataset(mask_file, '../dataset/1Dspectrum[100,42].h5', encoder='predict')
-    # 遍历数据集进行预测
-    for idx in range(len(predict_dataset)):
-        input_data = predict_dataset[idx]  # 获取单条输入数据
-        print(input_data.shape)
+    # # ----------实例化预测数据集----------
+    # predict_dataset = Basic1DDataset(mask_file, '../dataset/1Dspectrum[100,42].h5', encoder='predict')
+    # # 遍历数据集进行预测
+    # for idx in range(len(predict_dataset)):
+    #     input_data = predict_dataset[idx]  # 获取单条输入数据
+    #     print(input_data.shape)
